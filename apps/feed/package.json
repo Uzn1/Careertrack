@@ -3,9 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nuxt dev --port 3000",
-    "generate": "nuxt generate",
-    "typecheck": "nuxt typecheck",
+    "dev": "nuxt dev --port 3000 --dotenv ../../.env",
+    "generate": "nuxt generate --dotenv ../../.env",
+    "typecheck": "nuxt typecheck --dotenv ../../.env",
     "postinstall": "nuxt prepare"
   }
 }

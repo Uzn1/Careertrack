@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "framework": null,
+  "installCommand": "cd ../.. && npm ci",
+  "buildCommand": "cd ../.. && npm run build:calendar",
+  "outputDirectory": ".output/public",
+  "rewrites": [
+    {
+      "source": "/((?!_nuxt/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

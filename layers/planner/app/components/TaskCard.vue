@@ -1,22 +1,19 @@
 <script setup lang="ts">
-import { Check, MoreHorizontal, CalendarDays, Pencil, Clock3, Trash2, FolderOpen } from 'lucide-vue-next'
+import { Check, MoreHorizontal, CalendarDays, Pencil, Trash2, Clock3, FolderOpen } from 'lucide-vue-next'
 import { ref } from 'vue'
-import type { Task } from '../../shared/domain'
-defineProps<{ task: Task; context?: string; disabled?: boolean; showScheduling?: boolean }>()
-const emit = defineEmits<{ toggle: []; edit: []; postpone: []; remove: []; project: [] }>()
-const menu = ref(false)
+import { taskStatus, categoryStyle, type Task } from '../../shared/domain'
+defineProps<{task:Task;context?:string;disabled?:boolean;showScheduling?:boolean}>()
+const emit=defineEmits<{toggle:[];edit:[];postpone:[];project:[];remove:[]}>()
+const menu=ref(false)
 </script>
 <template>
-  <article class="task-card" :class="{ 'is-done': task.completed }">
-    <button class="check-task" :class="{ checked: task.completed }" :disabled="disabled" :aria-label="`${task.title} ${task.completed ? '완료 취소' : '완료'}`" :aria-pressed="task.completed" @click="emit('toggle')"><Check v-if="task.completed" :size="16" /></button>
-    <div class="task-body">
-      <div class="task-labels"><span class="category" :class="{ academic: task.category === '학업', personal: task.category === '개인' }">{{ task.category }}</span><span class="priority" :class="`p${task.priority}`">{{ ['','높음','보통','낮음'][task.priority] }} 우선순위</span></div>
-      <button class="task-title" @click="emit('edit')">{{ task.title }}</button>
-      <div class="task-meta"><button v-if="context" class="context-link" @click="emit('project')"><FolderOpen :size="13" />{{ context }}</button><span v-if="task.deadline"><CalendarDays :size="13" /> 마감 {{ task.deadline.slice(5).replace('-', '.') }}</span><span v-if="task.completed">완료됨</span></div>
-    </div>
-    <div class="task-actions">
-<button class="icon-button" aria-label="할 일 수정" @click="emit('edit')"><Pencil :size="15" /></button><button v-if="showScheduling !== false" class="icon-button" aria-label="할 일 메뉴" :aria-expanded="menu" @click="menu = !menu"><MoreHorizontal :size="20" /></button>
-      <div v-if="menu" class="task-menu"><button v-if="!task.completed" @click="menu=false;emit('postpone')"><Clock3 :size="15" /> 다른 날로 미루기</button><button @click="menu=false;emit('remove')"><Trash2 :size="15" /> 삭제하기</button><button @click="menu=false">메뉴 닫기</button></div>
-    </div>
+  <article class="task-card" :class="{'is-done':task.completed}">
+    <button class="check-task" :class="{checked:task.completed}" :disabled="disabled" :aria-label="`${task.title} ${task.completed?'완료 취소':'완료'}`" :aria-pressed="task.completed" @click="emit('toggle')"><Check v-if="task.completed" :size="16" /></button>
+    <div class="task-body"><button class="task-title" @click="emit('edit')">{{ task.title }}</button><div class="task-summary"><button v-if="context" class="project-badge" @click="emit('project')"><FolderOpen :size="14" />{{ context }}</button><span class="category" :style="categoryStyle(task.category)">{{ task.category }}</span><span v-if="task.priority===1" class="priority p1">높은 우선순위</span><span v-else-if="task.priority===3" class="task-low-priority">낮은 우선순위</span><span v-if="taskStatus(task)==='in_progress'" class="status-chip">진행 중</span><span v-if="task.deadline" class="task-deadline"><CalendarDays :size="14" />마감 {{ task.deadline.slice(5).replace('-','.') }}</span></div></div>
+    <div class="task-actions"><button class="icon-button" aria-label="할 일 수정" @click="emit('edit')"><Pencil :size="17" /></button><button class="icon-button delete-task" aria-label="할 일 휴지통으로 이동" :disabled="disabled" @click="menu=false;emit('remove')"><Trash2 :size="19" /></button><button v-if="showScheduling!==false&&!task.completed" class="icon-button" aria-label="할 일 메뉴" :aria-expanded="menu" @click="menu=!menu"><MoreHorizontal :size="20" /></button><div v-if="menu" class="task-menu"><button @click="menu=false;emit('postpone')"><Clock3 :size="15" />다른 날로 미루기</button></div></div>
   </article>
 </template>
+<style scoped>
+article.task-card{position:relative;display:flex;gap:13px;padding:22px 20px;background:#fff;border:1px solid var(--line);border-radius:13px;margin-bottom:11px;min-height:103px;align-items:flex-start}.task-card>.check-task{margin-top:3px;width:22px;height:22px;min-width:22px;flex-shrink:0;border-radius:7px}.task-body{min-width:0;flex:1}.task-body>.task-title{display:block;text-align:left;font-size:17px;font-weight:700;line-height:1.7;padding-right:98px;overflow-wrap:anywhere;letter-spacing:-.35px}.task-summary{display:flex;align-items:center;gap:8px 11px;flex-wrap:wrap;margin-top:12px}.project-badge{display:inline-flex;align-items:center;gap:6px;color:var(--green);background:#edf6e8;border:1px solid #dbe9d2;border-radius:6px;padding:4px 8px;font-size:13px;font-weight:700;line-height:1.6;max-width:100%;text-align:left;overflow-wrap:anywhere}.category{font-size:12px;line-height:1.6;padding:3px 7px}.task-summary .priority{font-size:12px}.task-low-priority{font-size:12px;color:#a0aa98}.task-deadline{display:inline-flex;align-items:center;gap:5px;font-size:13px;color:#8e9b82;line-height:1.8;margin-left:auto}.task-card>.task-actions{position:absolute;right:12px;top:14px;display:flex;flex-direction:row;align-items:center;gap:2px;padding:0}.task-actions>.icon-button:first-child{display:inline-flex;visibility:visible}.task-actions>.icon-button{width:29px;height:31px}.task-actions>.delete-task{width:31px!important;height:33px!important}.task-menu{top:36px;min-width:165px}.task-card.is-done{background:#f7faf4;opacity:.7}.is-done .task-title{text-decoration:line-through;color:#99a58d}.task-board article.task-card{padding:45px 14px 20px}.task-board .task-body>.task-title{font-size:16px;padding-right:0}.task-board .task-summary{gap:8px;margin-top:13px}.task-board .task-deadline{margin-left:0}.task-board .task-card>.check-task{margin-top:4px}.task-board .status-chip{display:none}
+@media(max-width:767px){article.task-card{padding:43px 15px 18px;gap:11px}.task-body>.task-title{padding-right:0;font-size:16px}.task-deadline{margin-left:0}.task-summary{gap:8px}.project-badge{font-size:13px}.task-card>.task-actions{top:5px;right:10px}.task-board article.task-card{padding:43px 15px 18px}.task-board .task-body>.task-title{font-size:16px}}
+</style>

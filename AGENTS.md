@@ -14,7 +14,7 @@ This is a Nuxt 4, Vue 3, TypeScript, and Tailwind CSS npm workspace. `PRD.md` de
 - `supabase/`: SQL migration and access-control verification script for a later stage.
 - `docs/IMPLEMENTATION.md`: five-stage roadmap and verification instructions.
 
-The active application starts in `StageOnePlanner.vue`. Other previously drafted features remain disconnected until their planned stage is authorized and verified.
+The active application starts in `PlannerApp.vue`; shared calendar and brand components serve all three variants. Current user authorization allows sequential work through stage five before final verification. Supabase account validation and Vercel deployment remain pending external setup. Keep unverified changes uncommitted until the user confirms.
 
 ## Build, Test, and Development Commands
 

@@ -8,3 +8,9 @@ dist/
 .vercel/
 coverage/
 .DS_Store
+
+# Nuxt may create a dist symlink beside each app.
+apps/*/dist
+.vercel-preview/
+
+.nuxt-build/

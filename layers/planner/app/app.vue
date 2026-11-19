@@ -1,1 +1,1 @@
-<template><StageOnePlanner /></template>
+<template><PlannerApp /></template>

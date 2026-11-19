@@ -10,3 +10,14 @@ describe('task invariants',()=>{
  it('sorts by priority then creation time without changing the input',()=>{const input=[{...task,id:'late',priority:1,created_at:'2026-11-19T00:00:00Z'},task,{...task,id:'early',priority:1}];expect(sortTasks(input).map(t=>t.id)).toEqual(['early','late','one']);expect(input[0]!.id).toBe('late')})
  it('reschedules one record and preserves deadline and project linkage',()=>{const moved=postpone(task,'2026-11-23');expect(moved).toEqual({...task,scheduled_date:'2026-11-23'});expect(moved.id).toBe(task.id);expect(task.scheduled_date).toBe('2026-11-19')})
 })
+
+describe('live next-day briefing',()=>{
+ it('counts only unfinished high-priority tasks and reflects edits',async()=>{
+  const { briefingFor }=await import('../layers/planner/shared/domain')
+  const rows=[{...task,id:'a',scheduled_date:'2026-11-20',priority:1},{...task,id:'b',scheduled_date:'2026-11-20',priority:1,completed:true},{...task,id:'c',scheduled_date:'2026-11-21',priority:1}]
+  expect(briefingFor(rows,'2026-11-20')).toMatchObject({completed:1,highPriority:1})
+  expect(briefingFor(rows,'2026-11-20').remaining.map(t=>t.id)).toEqual(['a'])
+  rows[0]={...rows[0]!,scheduled_date:'2026-11-21'}
+  expect(briefingFor(rows,'2026-11-20')).toMatchObject({completed:1,highPriority:0,remaining:[]})
+ })
+})

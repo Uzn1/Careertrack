@@ -7,6 +7,7 @@ const issue = publicConfigError(supabaseUrl, supabaseKey)
 if (issue) throw new Error(issue)
 export default defineNuxtConfig({
   ssr: false,
+  nitro: { preset: 'static' },
   css: [fileURLToPath(new URL('./app/assets/main.css', import.meta.url))],
   vite: { plugins: [tailwindcss()] },
   runtimeConfig: { public: { supabaseUrl, supabaseKey, variant: 'feed', featureStage: 5 } },

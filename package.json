@@ -1,0 +1,39 @@
+{
+  "name": "career-planner",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w @career/feed",
+    "dev:feed": "npm run dev -w @career/feed",
+    "dev:calendar": "npm run dev -w @career/calendar",
+    "dev:workspace": "npm run dev -w @career/workspace",
+    "build": "npm run generate --workspaces",
+    "build:feed": "npm run generate -w @career/feed",
+    "build:calendar": "npm run generate -w @career/calendar",
+    "build:workspace": "npm run generate -w @career/workspace",
+    "typecheck": "npm run typecheck --workspaces",
+    "lint": "eslint .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.0.0",
+    "@tailwindcss/vite": "^4.0.0",
+    "lucide-vue-next": "^0.468.0",
+    "nuxt": "^4.0.0",
+    "tailwindcss": "^4.0.0",
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^26.6.6",
+    "eslint": "^9.0.0",
+    "eslint-plugin-vue": "^10.0.0",
+    "typescript": "^5.9.0",
+    "typescript-eslint": "^8.0.0",
+    "vitest": "^5.1.1",
+    "vue-tsc": "^3.0.0"
+  }
+}

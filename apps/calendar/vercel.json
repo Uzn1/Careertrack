@@ -6,7 +6,7 @@
   "outputDirectory": ".output/public",
   "rewrites": [
     {
-      "source": "/((?!_nuxt/).*)",
+      "source": "/((?!_nuxt/|api/).*)",
       "destination": "/index.html"
     }
   ]

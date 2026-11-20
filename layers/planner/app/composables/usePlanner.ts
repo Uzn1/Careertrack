@@ -1,8 +1,9 @@
 import { computed, ref } from 'vue'
 import { useRuntimeConfig } from '#imports'
 import { createClient, type User } from '@supabase/supabase-js'
-import { dateInZone, shiftDate, sortTasks, taskStatus, validRoutine, attachmentError, validWeeklyPriorities, type Task, type Project, type ProjectItem, type UserSettings, type RoutineEntry, type ProjectMaterial } from '../../shared/domain'
+import { dateInZone, shiftDate, scheduleNotification, movedProjects, orderedProjects, sortTasks, taskStatus, validRoutine, attachmentError, validWeeklyPriorities, type Task, type Project, type ProjectItem, type UserSettings, type RoutineEntry, type ProjectMaterial } from '../../shared/domain'
 
+import { readRoutineSuggestion, type RoutineSuggestion } from '../../shared/routine-ai'
 import { publicConfigError } from '../../shared/config'
 import { isTask, isProject, isItem, isMaterial, readLocal, writeLocal, type PlannerData } from '../../shared/storage'
 
@@ -26,7 +27,7 @@ export function usePlanner() {
   const tomorrow = computed(() => shiftDate(today.value, 1))
   const owner = () => { if (demo.value) return 'demo'; if (user.value) return user.value.id; throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.') }
   let storageBlocked = false
-  function snapshot(): PlannerData { return { materials:materials.value, routines:routines.value, tasks: tasks.value, projects: projects.value, items: items.value, settings: settings.value } }
+  function snapshot(): PlannerData { return { project_schedules_migrated:true, materials:materials.value, routines:routines.value, tasks: tasks.value, projects: projects.value, items: items.value, settings: settings.value } }
   function persist(data = snapshot()) {
     if (storageBlocked) throw new Error('저장 자료를 읽지 못해 원본 보호를 위해 저장을 중단했습니다. 다시 불러온 후 시도하세요.')
     writeLocal(localStorage, data)
@@ -158,9 +159,43 @@ export function usePlanner() {
       notice.value = '설정을 저장했습니다.'
     })
   }
-  async function setProjectArchived(project:Project,archive:boolean){
-    return run(async()=>{await save('projects',{...project,archived_at:archive?new Date().toISOString():null});notice.value=archive?'종료된 프로젝트로 보관했습니다. 자료와 일정은 그대로 유지됩니다.':'프로젝트를 다시 진행 중으로 옮겼습니다.'})
+  async function suggestRoutine(text:string):Promise<RoutineSuggestion|undefined>{
+    let suggestion:RoutineSuggestion|undefined
+    const currentOwner=owner()
+    const ok=await run(async()=>{
+      if(demo.value&&!import.meta.dev)throw new Error('배포 사이트의 AI 시간표는 로그인 후 사용할 수 있습니다. 직접 추가는 체험 모드에서도 가능합니다.')
+      let token=''
+      if(!demo.value){const result=await client!.auth.getSession();token=result.data.session?.access_token||'';if(!token)throw new Error('로그인이 만료되었습니다. 다시 로그인해 주세요.')}
+      let response:Response
+      try{response=await fetch('/api/generate-routine',{method:'POST',headers:{'Content-Type':'application/json',...(token?{Authorization:`Bearer ${token}`}:{})},body:JSON.stringify({text}),signal:AbortSignal.timeout(35000)})}catch{throw new Error('AI 연결이 지연되거나 끊겼습니다. 잠시 후 다시 시도해 주세요.')}
+      let data
+      try{data=await response.json()}catch{throw new Error('AI 서버에 연결하지 못했습니다. 연결 설정을 확인해 주세요.')}
+      if(!response.ok)throw new Error(typeof data.error==='string'?data.error:'AI 요청을 처리하지 못했습니다. 다시 시도해 주세요.')
+      if(owner()!==currentOwner)throw new Error('계정이 변경되었습니다. 다시 시도해 주세요.')
+      suggestion=readRoutineSuggestion(data.routine)
+    })
+    return ok?suggestion:undefined
   }
+  async function moveProject(project:Project,beforeId:string|null,archive:boolean){
+    return run(async()=>{
+      const currentOwner=owner()
+      if(project.user_id!==currentOwner)throw new Error('내 프로젝트만 이동할 수 있습니다.')
+      if(demo.value){
+        const current=readLocal(localStorage)
+        const next={...current,projects:movedProjects(current.projects,project.id,beforeId,archive,new Date().toISOString())}
+        persist(next);applyLocal(next)
+      }else{
+        const next=movedProjects(projects.value,project.id,beforeId,archive,new Date().toISOString())
+        const ids=orderedProjects(next.filter(value=>Boolean(value.archived_at)===archive)).map(value=>value.id)
+        const result=await client!.rpc('move_project',{p_project_id:project.id,p_order:ids,p_archived:archive})
+        if(result.error)throw result.error
+        if(user.value?.id!==currentOwner||demo.value)throw new Error('계정이 변경되었습니다. 다시 불러와 주세요.')
+        projects.value=result.data as Project[]
+      }
+      notice.value='프로젝트 위치를 저장했습니다.'
+    })
+  }
+  async function setProjectArchived(project:Project,archive:boolean){return moveProject(project,null,archive)}
   async function saveWeekly(week:string,priorities:string[]){
     return run(async()=>{
       const entries=priorities.map(value=>value.trim())
@@ -199,6 +234,7 @@ export function usePlanner() {
   async function saveProjectWork(item: ProjectItem, task: Task) {
     const currentOwner=owner()
     const work={...task,status:taskStatus(task)}
+    if(work.deadline&&work.deadline<work.scheduled_date)throw new Error('마감일은 실행 예정일과 같거나 그 이후여야 합니다.')
     if(!isItem(item)||!isTask(work)||item.user_id!==currentOwner||work.user_id!==currentOwner||work.project_item_id!==item.id)throw new Error('프로젝트와 일정의 연결 정보를 확인해 주세요.')
     if(demo.value){
       const current=readLocal(localStorage)
@@ -220,6 +256,24 @@ export function usePlanner() {
   }
   async function restoreTask(task: Task) {
     return run(async()=>{await save('tasks',{...task,deleted_at:null});notice.value='할 일을 원래 날짜와 상태로 복원했습니다.'})
+  }
+  async function permanentlyDeleteTask(task:Task){
+    return run(async()=>{
+      if(task.user_id!==owner())throw new Error('내 휴지통의 할 일만 삭제할 수 있습니다.')
+      if(demo.value){
+        const current=readLocal(localStorage)
+        const target=current.tasks.find(value=>value.id===task.id)
+        if(!target?.deleted_at)throw new Error('휴지통에 있는 할 일만 영구 삭제할 수 있습니다.')
+        const next={...current,tasks:current.tasks.filter(value=>value.id!==task.id)}
+        persist(next);applyLocal(next)
+      }else{
+        const result=await client!.from('tasks').delete().eq('id',task.id).eq('user_id',owner()).not('deleted_at','is',null).select('id').maybeSingle()
+        if(result.error)throw result.error
+        if(!result.data)throw new Error('휴지통에 있는 할 일을 찾지 못했습니다. 새로고침 후 확인해 주세요.')
+        tasks.value=tasks.value.filter(value=>value.id!==task.id)
+      }
+      notice.value='할 일을 영구 삭제했습니다.'
+    })
   }
   async function removeRoutine(id: string) {
     return run(async()=>{
@@ -251,5 +305,5 @@ export function usePlanner() {
       notice.value = '예시 프로젝트와 할 일을 추가했습니다.'
     })
   }
-  return { setProjectArchived, saveWeekly, materials, saveMaterial, downloadMaterial, routines, removeRoutine, configured, recovery, user, demo, tasks:computed(()=>tasks.value.filter(task=>!task.deleted_at)), trash:computed(()=>tasks.value.filter(task=>Boolean(task.deleted_at))), trashTask, restoreTask, projects, items, settings, today, tomorrow, busy, loading, error, notice, init, load, auth, logout, startDemo, save, saveProjectWork, run, stamp, saveSettings, addExamples, ordered: computed(() => sortTasks(tasks.value.filter(task=>!task.deleted_at))) }
+  return { moveProject, notification:computed(()=>scheduleNotification(tasks.value,routines.value,now.value,settings.value.timezone)), permanentlyDeleteTask, suggestRoutine, setProjectArchived, saveWeekly, materials, saveMaterial, downloadMaterial, routines, removeRoutine, configured, recovery, user, demo, tasks:computed(()=>tasks.value.filter(task=>!task.deleted_at)), trash:computed(()=>tasks.value.filter(task=>Boolean(task.deleted_at))), trashTask, restoreTask, projects, items, settings, today, tomorrow, busy, loading, error, notice, init, load, auth, logout, startDemo, save, saveProjectWork, run, stamp, saveSettings, addExamples, ordered: computed(() => sortTasks(tasks.value.filter(task=>!task.deleted_at))) }
 }

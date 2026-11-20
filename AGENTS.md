@@ -14,7 +14,7 @@ This is a Nuxt 4, Vue 3, TypeScript, and Tailwind CSS npm workspace. `PRD.md` de
 - `supabase/`: SQL migration and access-control verification script for a later stage.
 - `docs/IMPLEMENTATION.md`: five-stage roadmap and verification instructions.
 
-The active application starts in `PlannerApp.vue`; shared calendar and brand components serve all three variants. Current user authorization allows sequential work through stage five before final verification. Supabase account validation and Vercel deployment remain pending external setup. Keep unverified changes uncommitted until the user confirms.
+The active application starts in `PlannerApp.vue`; shared calendar and brand components serve all three variants. Current user authorization allows sequential work through stage five before final verification. Supabase account validation remains pending external setup; Vercel sites exist, but local changes require a new deployment and verification. Keep unverified changes uncommitted until the user confirms.
 
 ## Build, Test, and Development Commands
 
@@ -26,4 +26,4 @@ Use two-space indentation, PascalCase Vue components, camelCase functions, and e
 
 ## Commits & Configuration
 
-Existing history has no established commit convention. Use focused imperative subjects and stage only the user-verified changes. Preserve existing upstream documents. Never force-push or include `.env`, credentials, generated output, or dependencies. Document configuration with placeholders in `.env.example`. Supabase integration and Vercel publication require their own verified stages.
+Existing history has no established commit convention. Use focused imperative subjects and stage only the user-verified changes. Preserve existing upstream documents. Never force-push or include `.env`, credentials, generated output, or dependencies. Document configuration with placeholders in `.env.example`. Supabase integration and production deployment verification remain separate checks. See `QA-REPORT.md` for tested scope and blocked scenarios.

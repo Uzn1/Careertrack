@@ -1,5 +1,16 @@
 import { expect, it } from 'vitest'
-import { calendarDates, moveCalendar, validCategory } from '../layers/planner/shared/domain'
+import { calendarDates, moveCalendar, validCategory, taskOnCalendarDate, postpone, type Task } from '../layers/planner/shared/domain'
+it('shows one record from execution through its deadline across month boundaries',()=>{
+ const task:Task={id:'period',user_id:'owner',title:'자소서',scheduled_date:'2026-11-29',deadline:'2026-12-02',priority:1,category:'취업 준비',completed:false,project_item_id:null,created_at:''}
+ expect(['2026-11-28','2026-11-29','2026-11-30','2026-12-01','2026-12-02','2026-12-03'].filter(date=>taskOnCalendarDate(task,date))).toEqual(['2026-11-29','2026-11-30','2026-12-01','2026-12-02'])
+ expect(taskOnCalendarDate({...task,deadline:null},'2026-11-30')).toBe(false)
+ expect(taskOnCalendarDate({...task,deleted_at:'2026-11-29T00:00:00Z'},'2026-11-29')).toBe(false)
+ const moved=postpone(task,'2026-12-03')
+ expect(moved.deadline).toBe('2026-12-02')
+ expect(taskOnCalendarDate(moved,'2026-12-03')).toBe(true)
+ expect(taskOnCalendarDate(moved,'2026-12-02')).toBe(false)
+ expect(taskOnCalendarDate({...task,completed:true},'2026-12-01')).toBe(true)
+})
 it('builds 42 month cells including leap day',()=>{const days=calendarDates('2028-02-15','month');expect(days).toHaveLength(42);expect(days[0]).toBe('2028-01-30');expect(days).toContain('2028-02-29')})
 it('builds a Sunday-to-Saturday week across year boundaries',()=>{expect(calendarDates('2027-01-01','week')).toEqual(['2026-12-27','2026-12-28','2026-12-29','2026-12-30','2026-12-31','2027-01-01','2027-01-02'])})
 it('moves by calendar months or seven-day weeks',()=>{expect(moveCalendar('2026-01-31','month',1)).toBe('2026-02-01');expect(moveCalendar('2026-12-31','month',1)).toBe('2027-01-01');expect(moveCalendar('2026-12-31','week',1)).toBe('2027-01-07')})

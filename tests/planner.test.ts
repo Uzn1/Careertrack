@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { usePlanner } from '../layers/planner/app/composables/usePlanner'
 import type { Task, Project, ProjectItem } from '../layers/planner/shared/domain'
-import { postpone } from '../layers/planner/shared/domain'
+import { computed } from 'vue'
+import { routineHourRange, postpone } from '../layers/planner/shared/domain'
 import { LEGACY_KEY } from '../layers/planner/shared/storage'
 function memoryStorage() {
  const data = new Map<string,string>()
@@ -80,6 +81,22 @@ it('moves a task to trash and restores the same dates, state, and identity',asyn
  expect(await p.restoreTask(p.trash.value[0]!)).toBe(true)
  expect(p.trash.value).toHaveLength(0);expect(p.tasks.value[0]).toEqual({...task,deleted_at:null})
 })
+it('permanently removes only trash without regenerating its linked project task on reload',async()=>{
+ const p=usePlanner();dispose=await p.init()
+ const project:Project={...p.stamp(),title:'영구 삭제 검증',company:'기업',deadline:'2026-11-30'}
+ await p.save('projects',project)
+ const item:ProjectItem={...p.stamp(),project_id:project.id,title:'삭제할 일정',stage:'준비',content:'남겨 둘 메모',deadline:'2026-11-25'}
+ const task:Task={...p.stamp(),id:item.id,title:item.title,scheduled_date:p.today.value,deadline:item.deadline!,priority:2,category:'취업 준비',completed:false,project_item_id:item.id}
+ await p.saveProjectWork(item,task)
+ expect(await p.permanentlyDeleteTask(task)).toBe(false)
+ expect(p.tasks.value).toHaveLength(1)
+ await p.trashTask(task)
+ expect(await p.permanentlyDeleteTask({...p.trash.value[0]!,user_id:'someone-else'})).toBe(false)
+ expect(await p.permanentlyDeleteTask(p.trash.value[0]!)).toBe(true)
+ p.startDemo();p.startDemo()
+ expect(p.tasks.value).toHaveLength(0);expect(p.trash.value).toHaveLength(0)
+ expect(p.projects.value).toHaveLength(1);expect(p.items.value[0]!.content).toBe('남겨 둘 메모')
+})
 it('creates one synchronized project card and schedule and updates both without duplicates',async()=>{
  const p=usePlanner();dispose=await p.init()
  const project:Project={...p.stamp(),title:'채용 프로젝트',company:'기업',start_date:'2026-11-01',deadline:'2026-11-30'}
@@ -120,4 +137,42 @@ it('archives and reopens a project without deleting its archive or changing task
  p.startDemo();expect(p.projects.value).toHaveLength(1)
  expect(await p.setProjectArchived(p.projects.value[0]!,false)).toBe(true)
  expect(p.projects.value[0]!.archived_at).toBeNull()
+})
+it('persists project ordering and rejects changes to another user project',async()=>{
+ const p=usePlanner();dispose=await p.init()
+ const rows=['a','b','c'].map(id=>({...p.stamp(),id,title:id,company:'',deadline:null}))
+ for(const row of rows)await p.save('projects',row)
+ expect(await p.moveProject(rows[2]!,'a',false)).toBe(true)
+ p.startDemo()
+ expect([...p.projects.value].sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)).map(p=>p.id)).toEqual(['c','a','b'])
+ expect(await p.moveProject({...rows[0]!,user_id:'other'},null,true)).toBe(false)
+ expect(await p.moveProject(rows[0]!,'missing',false)).toBe(false)
+ expect(await p.moveProject(rows[0]!,null,true)).toBe(true)
+ p.startDemo();expect(p.projects.value.find(p=>p.id==='a')!.archived_at).toBeTruthy()
+})
+
+it('shrinks the reactive timetable range after deleting its latest routine and after reload',async()=>{
+ const p=usePlanner();dispose=await p.init()
+ const morning={...p.stamp(),title:'아침 공부',weekdays:[1,3],start_time:'09:00',end_time:'10:00'}
+ const evening={...p.stamp(),title:'저녁 운동',weekdays:[1,3],start_time:'19:00',end_time:'24:00'}
+ await p.save('routines',morning);await p.save('routines',evening)
+ const range=computed(()=>routineHourRange(p.routines.value))
+ expect(range.value).toEqual({first:9,last:24})
+ expect(await p.removeRoutine(evening.id)).toBe(true)
+ expect(range.value).toEqual({first:9,last:10})
+ p.startDemo()
+ expect(range.value).toEqual({first:9,last:10})
+ expect(p.routines.value).toEqual([morning])
+})
+
+it('rejects an earlier project-work deadline without partial writes and allows the same date',async()=>{
+ const p=usePlanner();dispose=await p.init()
+ const project:Project={...p.stamp(),title:'QA 지원',company:'QA',deadline:null}
+ await p.save('projects',project)
+ const item:ProjectItem={...p.stamp(),project_id:project.id,title:'QA 면접',stage:'준비',content:'',deadline:'2026-11-19'}
+ const task:Task={...p.stamp(),title:item.title,scheduled_date:'2026-11-20',deadline:item.deadline!,priority:2,category:'취업 준비',completed:false,project_item_id:item.id}
+ await expect(p.saveProjectWork(item,task)).rejects.toThrow('마감일은 실행 예정일')
+ expect(p.items.value).toHaveLength(0);expect(p.tasks.value).toHaveLength(0)
+ await p.saveProjectWork({...item,deadline:task.scheduled_date},{...task,deadline:task.scheduled_date})
+ expect(p.tasks.value[0]?.deadline).toBe(task.scheduled_date)
 })
